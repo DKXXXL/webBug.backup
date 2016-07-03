@@ -1,4 +1,4 @@
-import WBData (rule ,history, inPut, outPut, nofind)
+import WBData (rule ,history, inPut, outPut, alloutPut, nofind)
 import RegScr
 
 webGet :: String -> IO String
@@ -23,18 +23,9 @@ webGet = getWebContext
 noRepeat :: String -> IO String
 noRepeat = nofind history
 
-t3 :: [IO a] -> IO [a]
-t3 (x':l) = x' >>= (\x -> return $ x : (t3 l))
 
-nextWeb :: String -> IO [String]
-nextWeb x = liftM (lines .( \n -> regApply n x) . ruleScript) (alloutPut rule)  
-  where alloutPut y =liftM (foldr combine' []) alloutput 
-          where alloutput :: IO [(Maybe String)]
-                alloutput' = (outPut y) : infinitoutput'
-                alloutput = t3 infiniteoutput'
-                combine' :: (Maybe String) -> [String] -> [String]
-                combine' Nothing _ = []
-                combine' (Just x) y = (x:y)
+nextWeb :: (String,String) -> IO [String]
+nextWeb x = liftM (( \n -> regApply n x) . ruleScript) (alloutPut rule)  
                 
 webBug' :: ([String] ->IO (Maybe String)) ->
            ((String,String) -> IO ()) ->

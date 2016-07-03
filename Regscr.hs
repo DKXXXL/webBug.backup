@@ -34,11 +34,13 @@ regrize regSource = regrize' regSource
           let (a, _ ,b) = (str =~ regnextsym) :: (String, String, String)
           in  (a: (regrize' b))
 
-regApply :: [(String,[String])] -> (String,String) -> String
-regApply rules (iweb,input) = apply'  (snd . head $ filter (\(x,_) -> x =~ iweb || x == "default") rules) input
+regApply :: [(String,[String])] -> (String,String) -> [String]
+regApply rules (iweb,input) =
+  lines $ apply'  (snd . head $ filter (\(x,_) -> x =~ iweb || x == "default") rules) input
   where apply' :: [String] -> String -> String
         apply' [] input = input
-        apply' (procedure:others)  input = apply' others. unlines . monoize . beam $ input =~ procedure
+        apply' (procedure:others) input =
+          apply' others. unlines . monoize . beam $ input =~ procedure
         monoize :: (Eq x) => [x] -> [x]
         monoize = (map head).group
         beam :: [[x]] -> [x]
