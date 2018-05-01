@@ -1,7 +1,7 @@
 module Regscr
        (
-         regApply,
-         ruleScript
+        extractionsGenerator,
+        Extraction
        )
        where
 
@@ -89,7 +89,7 @@ extractGenerator regexp content = allpattern content
 
 extractsGenerator :: String -> Extract
 extractsGenerator regexp = foldr1 bindExtract alltheextract
-  where groupOfExt = splitOn regseriessym regexp
+  where groupOfExt = splitOn regnextsym regexp
         alltheextract = map extractGenerator groupOfExt
 
 bindExtraction :: Extraction -> Extraction -> Extraction
@@ -102,7 +102,12 @@ extractionGenerator :: String -> Extraction
 extractionGenerator patternAndcorr = 
   \(tag, ctx) -> if (patternrule tag) then filter ctx else []
   where (pattern, _ , rules) = patternAndcorr =~ regseriessym
-        patternrule = ruleGenerator pattern
+        patternrule = rulesGenerator pattern
         filter = extractsGenerator rules
+
+extractionsGenerator :: String -> Extraction
+extractionsGenerator = foldr1 bindExtraction . map extractionGenerator . lines
+
+
 
 

@@ -1,4 +1,4 @@
-import Regscr
+import Regscr 
 --import WebBug3
 import WebBug4 (webBug)
 import WBData (rule, output, queue, inPut, allinPut, outPut, alloutPut)
@@ -12,6 +12,17 @@ outputfile = "output"
 rulefile   = "rule"
 
 -}
+
+type History = [String]
+type QueueWeb = [String]
+type Output = [String]
+
+rule :: IO ((Tag, Content) -> [Content])
+rule = readFile rulefile >>= extractionsGenerator
+outputALine :: String -> IO ()
+outputALine = writeFile outputfile . (++ "\n")
+outputSeveralLines :: [String] -> IO ()
+outputSeveralLines = mapM outputALine >> return  
 
 --specialRequest :: String -> Maybe String
 --t2 :: ([a] -> [Maybe a]) -> ([a] -> [a]) 

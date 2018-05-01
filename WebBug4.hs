@@ -3,7 +3,7 @@ import RegScr
 
 webGet :: String -> IO String
 webGet = getWebContext
-  where getWebContext :: String ->IO String
+  where getWebContext :: String -> IO String
         getWebContext web =do
           print web
           t <- try (downloadURL web) :: IO (Either SomeException [Char])
