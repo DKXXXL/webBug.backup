@@ -1,7 +1,6 @@
 import Regscr 
 --import WebBug3
-import WebBug4 (webBug)
-import WBData (rule, output, queue, inPut, allinPut, outPut, alloutPut)
+import WebBug3 (getWebContext)
 import Control.Monad.State
 --import System.Posix.Files
 {-
