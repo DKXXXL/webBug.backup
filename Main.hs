@@ -2,6 +2,7 @@ import Regscr
 --import WebBug3
 import WebBug3 (getWebContext)
 import Control.Monad.State
+
 --import System.Posix.Files
 
 
@@ -16,6 +17,7 @@ nextweb = "nextweb"
 type History = String
 type QueueAddr = String
 type Output = String
+type FileName = String
 type Recorder a = a -> IO ()
 
 webrule :: IO ((Tag, Content) -> [Content])
@@ -25,7 +27,7 @@ extractOutput :: IO ((Tag, Content) -> [Content])
 extractOutput = fmap extractionsGenerator $ readFile rulefile
 
 outputALine :: String -> IO ()
-outputALine = writeFile outputfile . (++ "\n")
+outputALine = appendFile outputfile . (++ "\n")
 
 outputSeveralLines :: [String] -> IO ()
 outputSeveralLines x =  (mapM outputALine x) >> (return () )
@@ -34,21 +36,37 @@ outputSeveralLines x =  (mapM outputALine x) >> (return () )
 data Buffer s = Buffer 
   {
     saver :: s -> IO (),
-    cache :: [s]
+    cache :: [s],
+    cleaner ::  IO ()
   }
 
+bufferCons :: FileName -> IO (Buffer String)
+bufferCons filename = 
+  do content <- readFile filename
+     length content `seq`
+       return $ Buffer ((appendFile filename) . (++ "\n")) (lines content) (writeFile filename "")
+
 save :: s -> (Buffer s) -> IO (Buffer s)
-save x buf = (saver buf x) >> (return $ buf {cache = x: (cache buf)})
+save x buf = (saver buf x) >> (return $ buf {cache = (cache buf) ++ [x]})
 
 ssave :: [s] -> Buffer s -> IO (Buffer s)
-ssave xl = foldr1 (<=<) . map (\x -> save x) $ xl
+ssave xl = foldr (<=<) (return) $ map (\x -> save x) $ xl
+
+clean :: (Buffer s) -> IO (Buffer s)
+clean buf = (cleaner buf) >> (return $ buf {cache = []})
+
+srewrite :: [s] -> Buffer s -> IO (Buffer s)
+srewrite xl buf = clean buf >>= (\b -> ssave xl b) 
+
+debugInfo :: QueueAddr -> Content  -> IO ()
+debugInfo q x = putStrLn q 
 
 
 historyFilter' :: History -> ([Content] -> [Content])
 historyFilter' x = filter (/= x) 
 
 historyFilter :: [History] -> ([Content] -> [Content])
-historyFilter xl = foldr1 (.) $ map historyFilter' xl
+historyFilter xl = foldr (.) (\x -> x) $ map historyFilter' xl
 
 data BackGrd = BackGrd 
   {
@@ -68,33 +86,30 @@ webbug :: Bugstate ()
 webbug = do 
       qB <- gets $ queueBuffer
       hB <- gets $ historyBuffer
-      let allthewebs = cache qB
+      let webqueue = cache qB
       let past = cache hB
-      case head' allthewebs of Nothing -> return ()
-                               (Just nextwebaddr) -> 
+      case webqueue of [] -> return ()
+                       (nextwebaddr:nextallother) -> 
                                   do
-                                  lift $ putStrLn nextwebaddr
+                                  
                                   webContent <- lift $ getWebContext nextwebaddr
+                                  lift $ debugInfo nextwebaddr webContent
                                   allnewwebs <- lift $ webrule <*> return (nextwebaddr, webContent)
                                   alloutPut <- lift $ extractOutput <*> return (nextwebaddr, webContent)
-                                  let allnewwebs' = historyFilter (nextwebaddr:past) allnewwebs
+                                  let newwebqueue = historyFilter (nextwebaddr:past) (allnewwebs ++ nextallother)
                                   op <- gets $ outputL
                                   lift $ op alloutPut
                                   nhB <- lift $ save nextwebaddr hB
-                                  nqB <- lift $ ssave allnewwebs' qB
+                                  nqB <- lift $ srewrite newwebqueue qB
                                   modify $ \s -> s {historyBuffer = nhB, queueBuffer = nqB}
                                   webbug
 
 
 initialBackground :: IO BackGrd
 initialBackground = 
-  do historycontent <- fmap lines $ readFile historyfile 
-     queuecontent <- fmap lines $ readFile queuefile
-     return (BackGrd (Buffer historyRecord historycontent)
-                      (Buffer queueRecord queuecontent)
-                      outputSeveralLines)
-  where historyRecord = writeFile historyfile . (++ "\n")
-        queueRecord = writeFile queuefile . (++ "\n")
+  do history <- bufferCons historyfile
+     queue <- bufferCons queuefile
+     return (BackGrd history queue outputSeveralLines)
      
     
 
