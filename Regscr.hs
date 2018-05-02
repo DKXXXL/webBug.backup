@@ -1,7 +1,8 @@
 module Regscr
        (
         extractionsGenerator,
-        Extraction
+        Extraction,
+        Tag, Content
        )
        where
 
@@ -16,7 +17,7 @@ type Rule = String -> Bool
 type Tag = String
 type Content = String
 type Extraction = (Tag, Content) -> [Content]
-type Extract = Content -> [Content]
+type RExtract = Content -> [Content]
 
 
 
@@ -33,16 +34,17 @@ rulesGenerator regexps = foldr1 bindRule alltherule
   where groupOfRegexp = splitOn regnextsym regexps
         alltherule = map ruleGenerator groupOfRegexp
 
-bindExtract :: Extract -> Extract -> Extract
-bindExtract = (<=<)
+bindExtract :: RExtract -> RExtract -> RExtract
+bindExtract f g = \x -> (f x >>= g)
 
-extractGenerator :: String -> Extract
+extractGenerator :: String -> RExtract
 extractGenerator regexp content = allpattern content
-  where allpattern remains = 
-          case remains =~ regexp of (_, "", _) -> []
-                                    (_, new, left) -> new:(allpattern left)
+  where allpattern :: String -> [String]
+        allpattern remains = 
+          case ((remains =~ regexp)::(String, String, String)) of (_, "", _) -> []
+                                                                  (_, new, left) -> new:(allpattern left)
 
-extractsGenerator :: String -> Extract
+extractsGenerator :: String -> RExtract
 extractsGenerator regexp = foldr1 bindExtract alltheextract
   where groupOfExt = splitOn regnextsym regexp
         alltheextract = map extractGenerator groupOfExt
@@ -56,7 +58,7 @@ bindExtraction f g = \x -> nonempty (f x) (g x)
 extractionGenerator :: String -> Extraction
 extractionGenerator patternAndcorr = 
   \(tag, ctx) -> if (patternrule tag) then filter ctx else []
-  where (pattern, _ , rules) = patternAndcorr =~ regseriessym
+  where (pattern, _ , rules) = (patternAndcorr =~ regseriessym) :: (String, String, String)
         patternrule = rulesGenerator pattern
         filter = extractsGenerator rules
 

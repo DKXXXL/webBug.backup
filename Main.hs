@@ -3,7 +3,7 @@ import Regscr
 import WebBug3 (getWebContext)
 import Control.Monad.State
 --import System.Posix.Files
-{-
+
 
 historyfile = "history"
 queuefile  = "queue"
@@ -11,7 +11,7 @@ outputfile = "output"
 rulefile   = "rule"
 nextweb = "nextweb"
 
--}
+
 
 type History = String
 type QueueAddr = String
@@ -28,32 +28,32 @@ outputALine :: String -> IO ()
 outputALine = writeFile outputfile . (++ "\n")
 
 outputSeveralLines :: [String] -> IO ()
-outputSeveralLines = mapM outputALine >> return  
+outputSeveralLines x =  (mapM outputALine x) >> (return () )
 
 
-newtype Buffer s = Buffer 
+data Buffer s = Buffer 
   {
     saver :: s -> IO (),
     cache :: [s]
   }
 
 save :: s -> (Buffer s) -> IO (Buffer s)
-save x buf = saver buf x >> return $ buf {cache = x: (cache buf)}
+save x buf = (saver buf x) >> (return $ buf {cache = x: (cache buf)})
 
 ssave :: [s] -> Buffer s -> IO (Buffer s)
 ssave xl = foldr1 (<=<) . map (\x -> save x) $ xl
 
 
 historyFilter' :: History -> ([Content] -> [Content])
-historyFilter' x = filter . (!= x) 
+historyFilter' x = filter (/= x) 
 
 historyFilter :: [History] -> ([Content] -> [Content])
 historyFilter xl = foldr1 (.) $ map historyFilter' xl
 
-newtype BackGrd = BackGrd 
+data BackGrd = BackGrd 
   {
-    historyBuffer :: Buffer History
-    queueBuffer :: Buffer QueueAddr
+    historyBuffer :: Buffer History,
+    queueBuffer :: Buffer QueueAddr,
     outputL :: Recorder [Output]
     }
 
@@ -68,14 +68,15 @@ webbug :: Bugstate ()
 webbug = do 
       qB <- gets $ queueBuffer
       hB <- gets $ historyBuffer
-      allthewebs <- cache qB
-      past <- cache hB
+      let allthewebs = cache qB
+      let past = cache hB
       case head' allthewebs of Nothing -> return ()
                                (Just nextwebaddr) -> 
+                                  do
                                   lift $ putStrLn nextwebaddr
                                   webContent <- lift $ getWebContext nextwebaddr
-                                  allnewwebs <- webrule <*> return (nextwebaddr, webContent)
-                                  alloutPut <- extractOutput <*> return (nextwebaddr, webContent)
+                                  allnewwebs <- lift $ webrule <*> return (nextwebaddr, webContent)
+                                  alloutPut <- lift $ extractOutput <*> return (nextwebaddr, webContent)
                                   let allnewwebs' = historyFilter (nextwebaddr:past) allnewwebs
                                   op <- gets $ outputL
                                   lift $ op alloutPut
@@ -87,13 +88,13 @@ webbug = do
 
 initialBackground :: IO BackGrd
 initialBackground = 
-  do historycontent <- lines $ readFile historyfile 
-     queuecontent <- lines $ readFile queuefile
+  do historycontent <- fmap lines $ readFile historyfile 
+     queuecontent <- fmap lines $ readFile queuefile
      return (BackGrd (Buffer historyRecord historycontent)
                       (Buffer queueRecord queuecontent)
                       outputSeveralLines)
   where historyRecord = writeFile historyfile . (++ "\n")
-        queueRecord = writeFile historyfile . (++ "\n")
+        queueRecord = writeFile queuefile . (++ "\n")
      
     
 
