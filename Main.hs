@@ -10,37 +10,126 @@ historyfile = "history"
 queuefile  = "queue"
 outputfile = "output"
 rulefile   = "rule"
+nextweb = "nextweb"
 
 -}
 
-type History = [String]
-type QueueWeb = [String]
-type Output = [String]
+type History = String
+type QueueAddr = String
+type Output = String
+type Recorder a = a -> IO ()
 
-rule :: IO ((Tag, Content) -> [Content])
-rule = readFile rulefile >>= extractionsGenerator
+webrule :: IO ((Tag, Content) -> [Content])
+webrule = fmap extractionsGenerator $ readFile nextweb
+
+extractOutput :: IO ((Tag, Content) -> [Content])
+extractOutput = fmap extractionsGenerator $ readFile rulefile
+
 outputALine :: String -> IO ()
 outputALine = writeFile outputfile . (++ "\n")
+
 outputSeveralLines :: [String] -> IO ()
 outputSeveralLines = mapM outputALine >> return  
 
---specialRequest :: String -> Maybe String
---t2 :: ([a] -> [Maybe a]) -> ([a] -> [a]) 
 
-reGenerate :: [String] -> IO (Maybe String)
-reGenerate [] = outPut queue
-reGenerate (a:[]) = return $ Just a
-reGenerate (a:l) = do result <- inPut queue a
-                      reGenerate l
+newtype Buffer s = Buffer 
+  {
+    saver :: s -> IO (),
+    cache :: [s]
+  }
 
-regrule = ruleScript $ alloutPut rule
+save :: s -> (Buffer s) -> IO (Buffer s)
+save x buf = saver buf x >> return $ buf {cache = x: (cache buf)}
 
-validData :: (String,String) -> IO ()
-validData ("",_) = return ()
-validData x = allinPut output $ regApply regrule x 
+ssave :: [s] -> Buffer s -> IO (Buffer s)
+ssave xl = foldr1 (<=<) . map (\x -> save x) $ xl
 
 
-main = webBug reGenerate validData "" 
+historyFilter' :: History -> ([Content] -> [Content])
+historyFilter' x = filter . (!= x) 
+
+historyFilter :: [History] -> ([Content] -> [Content])
+historyFilter xl = foldr1 (.) $ map historyFilter' xl
+
+newtype BackGrd = BackGrd 
+  {
+    historyBuffer :: Buffer History
+    queueBuffer :: Buffer QueueAddr
+    outputL :: Recorder [Output]
+    }
+
+type Bugstate = StateT BackGrd IO
+
+head' :: [a] -> Maybe a
+head' [] = Nothing
+head' (a:_) = Just a
+
+-- main idea of webbug
+webbug :: Bugstate ()
+webbug = do 
+      qB <- gets $ queueBuffer
+      hB <- gets $ historyBuffer
+      allthewebs <- cache qB
+      past <- cache hB
+      case head' allthewebs of Nothing -> return ()
+                               (Just nextwebaddr) -> 
+                                  lift $ putStrLn nextwebaddr
+                                  webContent <- lift $ getWebContext nextwebaddr
+                                  allnewwebs <- webrule <*> return (nextwebaddr, webContent)
+                                  alloutPut <- extractOutput <*> return (nextwebaddr, webContent)
+                                  let allnewwebs' = historyFilter (nextwebaddr:past) allnewwebs
+                                  op <- gets $ outputL
+                                  lift $ op alloutPut
+                                  nhB <- lift $ save nextwebaddr hB
+                                  nqB <- lift $ ssave allnewwebs' qB
+                                  modify $ \s -> s {historyBuffer = nhB, queueBuffer = nqB}
+                                  webbug
+
+
+initialBackground :: IO BackGrd
+initialBackground = 
+  do historycontent <- lines $ readFile historyfile 
+     queuecontent <- lines $ readFile queuefile
+     return (BackGrd (Buffer historyRecord historycontent)
+                      (Buffer queueRecord queuecontent)
+                      outputSeveralLines)
+  where historyRecord = writeFile historyfile . (++ "\n")
+        queueRecord = writeFile historyfile . (++ "\n")
+     
+    
+
+
+
+main :: IO ()
+main = do init <- initialBackground
+          evalStateT webbug init
+          return ()
+
+
+
+
+          
+
+
+
+
+-- --specialRequest :: String -> Maybe String
+-- --t2 :: ([a] -> [Maybe a]) -> ([a] -> [a]) 
+
+-- reGenerate :: [String] -> IO (Maybe String)
+-- reGenerate [] = outPut queue
+-- reGenerate (a:[]) = return $ Just a
+-- reGenerate (a:l) = do result <- inPut queue a
+--                       reGenerate l
+
+-- regrule = ruleScript $ alloutPut rule
+
+-- validData :: (String,String) -> IO ()
+-- validData ("",_) = return ()
+-- validData x = allinPut output $ regApply regrule x 
+
+
+-- main = webBug reGenerate validData "" 
 
 
 
