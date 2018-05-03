@@ -1,10 +1,4 @@
-module Regscr
-       (
-        extractionsGenerator,
-        Extraction,
-        Tag, Content
-       )
-       where
+module Regscr where
 
 import Data.List
 import Data.List.Split
@@ -26,7 +20,7 @@ bindRule f g = \x -> (f x) && (g x)
     
 -- ruleGenerator will generate a rule according to regular expression
 ruleGenerator :: String -> Rule 
-ruleGenerator = (=~)
+ruleGenerator x = (=~ x)
 
 -- rulesGenerator will generate a rule according to regular expression and '>>>>'
 rulesGenerator :: String -> Rule
