@@ -1,7 +1,7 @@
 module Main where
 import Regscr 
 --import WebBug3
-import WebBug3 (getWebContext)
+import WebApi (getWebContext)
 import Control.Monad.State
 
 --import System.Posix.Files
